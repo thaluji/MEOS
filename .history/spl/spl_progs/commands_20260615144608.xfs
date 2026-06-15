@@ -1,0 +1,8 @@
+fdisk
+load --library ../expl/library.lib
+load --os /Users/muhammedthalzihap/Project/myexpos/spl/spl_progs/os_startup.xsm
+load --init /Users/muhammedthalzihap/Project/myexpos/spl/spl_progs/init.xsm
+load --int=7 /Users/muhammedthalzihap/Project/myexpos/spl/spl_progs/int7.xsm
+load --int=10 /Users/muhammedthalzihap/Project/myexpos/spl/spl_progs/haltprog.xsm
+load --exhandler /Users/muhammedthalzihap/Project/myexpos/spl/spl_progs/haltprog.xsm
+exit
