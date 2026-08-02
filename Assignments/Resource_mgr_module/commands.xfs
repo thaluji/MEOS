@@ -1,0 +1,13 @@
+load --library ../expl/library.lib
+load --os /Users/muhammedthalzihap/Project/myexpos/Assignments/Resource_mgr_module/osloader.xsm
+load --init /Users/muhammedthalzihap/Project/myexpos/Assignments/Resource_mgr_module/init.xsm
+load --int=7 /Users/muhammedthalzihap/Project/myexpos/Assignments/Resource_mgr_module/int_7.xsm
+load --int=10 /Users/muhammedthalzihap/Project/myexpos/Assignments/Resource_mgr_module/int_10.xsm
+load --exhandler /Users/muhammedthalzihap/Project/myexpos/Assignments/Resource_mgr_module/haltprog.xsm
+load --idle /Users/muhammedthalzihap/Project/myexpos/Assignments/Resource_mgr_module/idle.xsm
+load --module 0 /Users/muhammedthalzihap/Project/myexpos/Assignments/Resource_mgr_module/mod_0.xsm
+load --module 4 /Users/muhammedthalzihap/Project/myexpos/Assignments/Resource_mgr_module/mod_4.xsm
+load --module 5 /Users/muhammedthalzihap/Project/myexpos/Assignments/Resource_mgr_module/mod_5.xsm
+load --module 7 /Users/muhammedthalzihap/Project/myexpos/Assignments/Resource_mgr_module/mod_7.xsm
+load --int=timer /Users/muhammedthalzihap/Project/myexpos/Assignments/Resource_mgr_module/timer.xsm
+load --exec /Users/muhammedthalzihap/Project/myexpos/Assignments/Resource_mgr_module/even.xsm

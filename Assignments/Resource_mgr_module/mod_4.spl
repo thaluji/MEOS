@@ -1,0 +1,49 @@
+// ------------------------------------------------------------------
+// Module 4 : Device Manager
+//
+// Arguments:
+//      R1 - function number
+//      R2 - PID of the process invoking the module
+//      R3 - word to be written to the terminal
+//
+// Functions implemented in this stage:
+//      3 (TERMINAL_WRITE) - abstraction layer between the Write system
+//                           call and the terminal handling functions of
+//                           the Resource Manager (Module 0)
+// ------------------------------------------------------------------
+
+alias functionNum R1;
+alias currentPID R2;
+alias word R3;
+alias returnValue R0;
+
+if (functionNum != TERMINAL_WRITE) then
+    returnValue = -1;
+    return;
+else
+
+    // ---- Acquire Terminal ----
+    multipush(R1, R2, R3);
+
+    functionNum = ACQUIRE_TERMINAL;     // R1 = 8, R2 already holds the PID
+
+    call MOD_0;
+
+    multipop(R1, R2, R3);
+
+    // The terminal is ours now - safe to write.
+    print word;
+
+    // ---- Release Terminal ----
+    multipush(R1, R2, R3);
+
+    functionNum = RELEASE_TERMINAL;     // R1 = 9, R2 already holds the PID
+
+    call MOD_0;
+
+    multipop(R1, R2, R3);
+
+    returnValue = 0;
+    return;
+
+endif;

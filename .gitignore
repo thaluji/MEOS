@@ -1,0 +1,8 @@
+# VSCode Local History extension
+.history/
+
+# Editor swap files
+*.swp
+
+# SPL compiler scratch file
+.temp
