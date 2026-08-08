@@ -1,0 +1,21 @@
+// INIT (PID 1) - exercises both paths of the Exec system call.
+//
+// The first Exec names a file that is not on the disk, so it must fail
+// with -1 and INIT must survive it intact. The second one replaces INIT
+// with abc.xsm and never returns, so 9999 is never printed.
+int main () {
+    decl
+        int t;
+    enddecl
+    begin
+        write(1111);
+
+        t = exposcall("Exec", "nofile.xsm");
+        write(t);
+
+        t = exposcall("Exec", "abc.xsm");
+
+        write(9999);
+        return 0;
+    end
+}

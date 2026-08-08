@@ -1,0 +1,39 @@
+// ------------------------------------------------------------------
+// INT 10 : Exit system call
+//
+// Now that there is a process manager, Exit gives the memory back
+// instead of just flipping the state word - otherwise every terminated
+// process would leak its whole address space.
+// ------------------------------------------------------------------
+
+alias currentPID R0;
+currentPID = [SYSTEM_STATUS_TABLE + 1];
+
+// Exit Process frees the page table, releases the user area page and
+// marks the process TERMINATED. The user area page is still serving as
+// this kernel stack, but nothing will run on it again: either the
+// scheduler takes us away below, or the machine halts.
+multipush(R0);
+
+R1 = EXIT_PROCESS;
+R2 = currentPID;
+
+call MOD_1;
+
+multipop(R0);
+
+// IDLE (PID 0) does not count - a machine with nothing but IDLE left has
+// no work to do.
+alias i R2;
+alias state R3;
+
+i = 1;
+while (i < MAX_PROC_NUM) do
+    state = [PROCESS_TABLE + 16 * i + 4];
+    if (state != TERMINATED) then
+        call MOD_5;
+    endif;
+    i = i + 1;
+endwhile;
+
+halt;

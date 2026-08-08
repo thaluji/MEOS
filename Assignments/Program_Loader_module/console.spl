@@ -1,0 +1,55 @@
+// ------------------------------------------------------------------
+// Console Interrupt Handler  (interrupt 3, memory pages 8-9)
+//
+// The XSM machine raises this interrupt when the word requested by an
+// earlier IN instruction has arrived in port P0 (i.e. when the user
+// pressed ENTER).
+//
+// The process that is running right now is NOT the process that asked
+// for the input - the reader is asleep in WAIT_TERMINAL. So this handler
+// borrows the kernel stack of whoever happens to be running, hands the
+// word to the reader, releases the terminal (which wakes the reader up)
+// and returns to the interrupted process as if nothing had happened.
+// ------------------------------------------------------------------
+
+// Save the user SP of the *interrupted* process in its UPTR
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;
+
+// Switch to the kernel stack of the interrupted process
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+
+// The interrupted process is minding its own business - preserve its
+// entire user context, exactly like the timer interrupt does.
+backup;
+
+alias reqPID R0;
+alias reqEntry R1;
+
+// The Terminal Status Table tells us who issued the IN instruction.
+reqPID = [TERMINAL_STATUS_TABLE + 1];
+reqEntry = PROCESS_TABLE + reqPID * 16;
+
+// Deliver the word: port P0 -> INPUT BUFFER of the requesting process.
+[reqEntry + 8] = P0;
+
+// ---- Release the terminal on behalf of the sleeping reader ----
+// Note that the release is done with reqPID, not with the PID of the
+// currently running process: the current process never held the
+// terminal. Release Terminal also moves every WAIT_TERMINAL process
+// back to READY, which is what wakes the reader up.
+multipush(R0, R1);
+
+R1 = RELEASE_TERMINAL;
+R2 = reqPID;
+
+call MOD_0;
+
+// The return value is of no use here.
+multipop(R0, R1);
+
+restore;
+
+// Back to the user stack of the interrupted process
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];
+
+ireturn;

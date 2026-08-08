@@ -1,0 +1,18 @@
+load --library ../expl/library.lib
+load --os ../Assignments/Program_Loader_module/osloader.xsm
+load --init ../Assignments/Program_Loader_module/init.xsm
+load --idle ../Assignments/Program_Loader_module/idle.xsm
+load --exhandler ../Assignments/Program_Loader_module/haltprog.xsm
+load --int=timer ../Assignments/Program_Loader_module/timer.xsm
+load --int=console ../Assignments/Program_Loader_module/console.xsm
+load --int=6 ../Assignments/Program_Loader_module/int_6.xsm
+load --int=7 ../Assignments/Program_Loader_module/int_7.xsm
+load --int=9 ../Assignments/Program_Loader_module/int_9.xsm
+load --int=10 ../Assignments/Program_Loader_module/int_10.xsm
+load --module 0 ../Assignments/Program_Loader_module/mod_0.xsm
+load --module 1 ../Assignments/Program_Loader_module/mod_1.xsm
+load --module 2 ../Assignments/Program_Loader_module/mod_2.xsm
+load --module 4 ../Assignments/Program_Loader_module/mod_4.xsm
+load --module 5 ../Assignments/Program_Loader_module/mod_5.xsm
+load --module 7 ../Assignments/Program_Loader_module/mod_7.xsm
+load --exec ../Assignments/Program_Loader_module/abc.xsm

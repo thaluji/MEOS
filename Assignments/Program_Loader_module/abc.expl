@@ -1,0 +1,16 @@
+// abc.xsm - the program INIT execs into. It runs with the same PID and
+// the same process table slot as INIT, but a completely new address
+// space built by the program loader.
+int main () {
+    decl
+        int n;
+    enddecl
+    begin
+        n = 1;
+        while (n <= 5) do
+            write(n * 100);
+            n = n + 1;
+        endwhile;
+        return 0;
+    end
+}
