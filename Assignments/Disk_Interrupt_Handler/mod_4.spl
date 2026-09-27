@@ -1,0 +1,136 @@
+// ------------------------------------------------------------------
+// Module 4 : Device Manager
+//
+// Arguments:
+//      R1 - function number
+//      R2 - PID of the process invoking the module
+//      R3, R4 - function 2: destination page and source disk block
+//      R3 - function 3 : the word to be written to the terminal
+//           function 4 : the LOGICAL address of the word in which the
+//                        value read from the console has to be stored
+// Return value:
+//      R0
+//
+// Functions implemented in this stage:
+//      2 (DISK_LOAD)      - load a block and wait for its interrupt
+//      3 (TERMINAL_WRITE) - print one word on the terminal
+//      4 (TERMINAL_READ)  - read one word from the console
+// ------------------------------------------------------------------
+
+alias functionNum R1;
+alias currentPID R2;
+alias word R3;
+alias returnValue R0;
+
+if (functionNum == TERMINAL_WRITE) then
+
+    // ---- Acquire Terminal ----
+    multipush(R1, R2, R3);
+
+    functionNum = ACQUIRE_TERMINAL;     // R1 = 8, R2 already holds the PID
+
+    call MOD_0;
+
+    multipop(R1, R2, R3);
+
+    // The terminal is ours now - safe to write.
+    print word;
+
+    // ---- Release Terminal ----
+    // A write completes synchronously (OUT does not raise an interrupt),
+    // so the writer hands the terminal back itself.
+    multipush(R1, R2, R3);
+
+    functionNum = RELEASE_TERMINAL;     // R1 = 9, R2 already holds the PID
+
+    call MOD_0;
+
+    multipop(R1, R2, R3);
+
+    returnValue = 0;
+    return;
+
+else
+
+    if (functionNum == TERMINAL_READ) then
+
+        // ---- Acquire Terminal ----
+        multipush(R1, R2, R3);
+
+        functionNum = ACQUIRE_TERMINAL;     // R1 = 8, R2 already holds the PID
+
+        call MOD_0;
+
+        multipop(R1, R2, R3);
+
+        // Ask the machine for a word from the console. IN does *not*
+        // wait for the data - the XSM machine keeps executing and raises
+        // the console interrupt once ENTER is pressed.
+        read;
+
+        // There is nothing useful to do until that interrupt arrives, so
+        // park this process and hand the CPU to somebody else. The
+        // console interrupt handler is the one that will set us back to
+        // READY (via Release Terminal).
+        [PROCESS_TABLE + currentPID * 16 + 4] = WAIT_TERMINAL;
+
+        multipush(R1, R2, R3);
+
+        call MOD_5;
+
+        multipop(R1, R2, R3);
+
+        // ---- We are running again, the word has arrived ----
+        // The console interrupt handler copied the contents of port P0
+        // into our INPUT BUFFER field. Move it to the address the caller
+        // asked for, translating the logical address through our own
+        // page table.
+        alias physicalPageNum R4;
+        alias offset R5;
+
+        physicalPageNum = [PTBR + 2 * (word / 512)];
+        offset = word % 512;
+
+        [physicalPageNum * 512 + offset] = [PROCESS_TABLE + currentPID * 16 + 8];
+
+        // The terminal was already released by the console interrupt
+        // handler - do not release it again here.
+        returnValue = 0;
+        return;
+
+    else
+
+        if (functionNum == DISK_LOAD) then
+
+            alias memoryPage R3;
+            alias diskBlock R4;
+
+            multipush (R1, R2, R3, R4);
+
+            functionNum = ACQUIRE_DISK;
+
+            call MOD_0;
+
+            multipop(R1, R2, R3, R4);
+
+            [DISK_STATUS_TABLE + 1] = 0;
+            [DISK_STATUS_TABLE + 2] = memoryPage;
+            [DISK_STATUS_TABLE + 3] = diskBlock;
+
+            load(memoryPage, diskBlock);
+
+            [PROCESS_TABLE + currentPID * 16 + 4] = WAIT_DISK;
+
+            call MOD_5;
+
+            returnValue = 0;
+            return;
+
+        else
+            // Unknown function number for this module.
+            returnValue = -1;
+            return;
+        endif;
+    endif;
+
+endif;

@@ -1,0 +1,195 @@
+// ------------------------------------------------------------------
+// INT 9 : Exec system call  (system call number 9)
+//
+//      User stack on entry:
+//          userSP - 5 : system call number (9)
+//          userSP - 4 : name of the executable, e.g. "abc.xsm"
+//          userSP - 1 : return value slot (-1 on failure; success never
+//                       returns, because there is no caller left)
+//
+// Exec replaces the address space of the calling process in place. The
+// PID, the process table slot and the page table stay the same; every
+// page the old program owned is handed back and a brand new set is
+// allocated for the new one.
+//
+// Register discipline in this routine: R0-R4 are scratch and are freely
+// clobbered by the modules called below (module 1 goes as far as R6),
+// so everything that has to survive a `call` is pushed explicitly.
+// ------------------------------------------------------------------
+
+// Mark the process as executing system call number 9 (Exec)
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 9;
+
+alias userSP R0;
+userSP = SP;
+
+// Save the user stack pointer in UPTR
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = userSP;
+
+// Switch to the kernel stack of the process
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+
+PTBR = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 14];
+
+alias physicalPageNum R1;
+alias offset R2;
+alias fileName R3;
+
+physicalPageNum = [PTBR + 2 * ((userSP - 4) / 512)];
+offset = (userSP - 4) % 512;
+fileName = [physicalPageNum * 512 + offset];
+
+// ---- Look the file up in the memory copy of the inode table ----
+alias inodeIndex R5;
+alias found R4;
+
+inodeIndex = 0;
+found = 0;
+
+while (inodeIndex < MAX_FILE_NUM) do
+    if ([INODE_TABLE + inodeIndex * 16 + 1] == fileName) then
+        if ([INODE_TABLE + inodeIndex * 16] == EXEC) then
+            found = 1;
+            break;
+        endif;
+    endif;
+    inodeIndex = inodeIndex + 1;
+endwhile;
+
+if (found == 0) then
+
+    // No such executable. This is the only path out of Exec that returns
+    // to the caller, so the old address space must still be intact here -
+    // which is why the lookup happens before anything is freed.
+    physicalPageNum = [PTBR + 2 * ((userSP - 1) / 512)];
+    offset = (userSP - 1) % 512;
+    [physicalPageNum * 512 + offset] = -1;
+
+    [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+    SP = userSP;
+
+    ireturn;
+
+endif;
+
+// ================= point of no return =================
+// From here on the caller no longer exists. Nothing may fail.
+
+alias currentPID R6;
+currentPID = [SYSTEM_STATUS_TABLE + 1];
+
+// ---- Hand back everything the old program owned ----
+multipush(R5, R6);
+
+R1 = EXIT_PROCESS;
+R2 = currentPID;
+
+call MOD_1;
+
+multipop(R5, R6);
+
+// Exit Process released the user area page too - but we are standing on
+// it, it is the kernel stack executing this very instruction. Take it
+// straight back before anybody else can be handed it.
+alias userAreaPage R7;
+userAreaPage = [PROCESS_TABLE + currentPID * 16 + 11];
+
+[MEMORY_FREE_LIST + userAreaPage] = [MEMORY_FREE_LIST + userAreaPage] + 1;
+[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+
+// Exec never returns, so nothing already on the kernel stack is of any
+// use. Start it over from the top.
+SP = userAreaPage * 512 - 1;
+
+// Reserve the final 16 words for the eight resource-table entries.
+alias resourceWord R4;
+resourceWord = 496;
+while (resourceWord < 512) do
+    [userAreaPage * 512 + resourceWord] = -1;
+    resourceWord = resourceWord + 1;
+endwhile;
+
+// Exit Process marked us TERMINATED on the way out. We are still alive.
+[PROCESS_TABLE + currentPID * 16 + 4] = RUNNING;
+[PROCESS_TABLE + currentPID * 16 + 7] = inodeIndex;
+
+// ---- Build a fresh address space in the (now empty) page table ----
+
+// Library. Shared by every process and owned by none, so it is mapped
+// directly instead of being allocated.
+[PTBR + 0] = 63;
+[PTBR + 1] = "0100";
+[PTBR + 2] = 64;
+[PTBR + 3] = "0100";
+
+// Heap - 2 pages
+[PTBR + 4] = -1;
+[PTBR + 5] = "0000";
+[PTBR + 6] = -1;
+[PTBR + 7] = "0000";
+
+// Stack - 2 pages
+multipush(R5, R6, R7);
+R1 = GET_FREE_PAGE;
+call MOD_2;
+multipop(R5, R6, R7);
+[PTBR + 16] = R0;
+[PTBR + 17] = "0110";
+
+multipush(R5, R6, R7);
+R1 = GET_FREE_PAGE;
+call MOD_2;
+multipop(R5, R6, R7);
+[PTBR + 18] = R0;
+[PTBR + 19] = "0110";
+
+// ---- Code - one page per disk block the file occupies ----
+alias numBlocks R8;
+alias i R9;
+
+numBlocks = (([INODE_TABLE + inodeIndex * 16 + 2] - 1) / 512) + 1;
+
+multipush(R1, R2, R3, R4, R5, R6, R7, R8, R9);
+
+R1 = GET_CODE_PAGE;
+R2 = [INODE_TABLE + inodeIndex * 16 + 8];
+call MOD_2;
+multipop(R1, R2, R3, R4, R5, R6, R7, R8, R9);
+[PTBR + 8] = R0;
+[PTBR + 9] = "0100";
+
+i = 1;
+while (i < 4) do
+    [PTBR + 8 + 2 * i] = -1;
+    [PTBR + 9 + 2 * i] = "0000";
+    i = i + 1;
+endwhile;
+
+// Every non-code entry, including the user-area slot, starts invalid.
+i = 0;
+while (i < 10) do
+    [DISK_MAP_TABLE + currentPID * 10 + i] = -1;
+    if (i >= 4 && i < 8) then
+        if (i - 4 < numBlocks) then
+            [DISK_MAP_TABLE + currentPID * 10 + i] = [INODE_TABLE + inodeIndex * 16 + 8 + (i - 4)];
+        endif;
+    endif;
+    i = i + 1;
+endwhile;
+
+// ---- Hand control to the new program ----
+// Word 1 of an XEXE image is its entry point. Park it at the bottom of
+// the fresh user stack; ireturn will pop it straight into IP.
+alias stackPage R1;
+alias codePage R2;
+
+stackPage = [PTBR + 16];
+codePage = [PTBR + 8];
+
+[stackPage * 512] = [codePage * 512 + 1];
+
+SP = 8 * 512;
+[PROCESS_TABLE + currentPID * 16 + 13] = 8 * 512;
+[PROCESS_TABLE + currentPID * 16 + 9] = 0;
+
+ireturn;

@@ -1,0 +1,83 @@
+Previous instruction at IP = 1024: BRKP
+Mode: KERNEL 	 PID: 1
+Next instruction at IP = 1026, Page No. = 2: MOV R16,28672
+debug> EC: 0
+debug> EIP: 2560
+debug> EPN: 5
+debug> VIRT: 0		PHY: 63		AUX: 0100	
+VIRT: 1		PHY: 64		AUX: 0100	
+VIRT: 2		PHY: -1		AUX: 0000	
+VIRT: 3		PHY: -1		AUX: 0000	
+VIRT: 4		PHY: 83		AUX: 0100	
+VIRT: 5		PHY: -1		AUX: 0000	
+VIRT: 6		PHY: -1		AUX: 0000	
+VIRT: 7		PHY: -1		AUX: 0000	
+VIRT: 8		PHY: 76		AUX: 0110	
+VIRT: 9		PHY: 77		AUX: 0110	
+debug> Heap 1 in Disk: -1	Heap 2 in Disk: -1
+Code 1 in Disk: 70	Code 2 in Disk: 71
+Code 3 in Disk: -1	Code 4 in Disk: -1
+Stack 1 in Disk: -1	Stack 2 in Disk: -1
+debug> Previous instruction at IP = 1414: BRKP
+Mode: KERNEL 	 PID: 1
+Next instruction at IP = 1416, Page No. = 2: RESTORE
+debug> EC: 0
+debug> EIP: 2560
+debug> EPN: 5
+debug> VIRT: 0		PHY: 63		AUX: 0100	
+VIRT: 1		PHY: 64		AUX: 0100	
+VIRT: 2		PHY: -1		AUX: 0000	
+VIRT: 3		PHY: -1		AUX: 0000	
+VIRT: 4		PHY: 83		AUX: 0100	
+VIRT: 5		PHY: 84		AUX: 1100	
+VIRT: 6		PHY: -1		AUX: 0000	
+VIRT: 7		PHY: -1		AUX: 0000	
+VIRT: 8		PHY: 76		AUX: 0110	
+VIRT: 9		PHY: 77		AUX: 0110	
+debug> Heap 1 in Disk: -1	Heap 2 in Disk: -1
+Code 1 in Disk: 70	Code 2 in Disk: 71
+Code 3 in Disk: -1	Code 4 in Disk: -1
+Stack 1 in Disk: -1	Stack 2 in Disk: -1
+debug> Previous instruction at IP = 1024: BRKP
+Mode: KERNEL 	 PID: 1
+Next instruction at IP = 1026, Page No. = 2: MOV R16,28672
+debug> EC: 0
+debug> EIP: 2560
+debug> EPN: 2
+debug> VIRT: 0		PHY: 63		AUX: 0100	
+VIRT: 1		PHY: 64		AUX: 0100	
+VIRT: 2		PHY: -1		AUX: 0000	
+VIRT: 3		PHY: -1		AUX: 0000	
+VIRT: 4		PHY: 83		AUX: 0100	
+VIRT: 5		PHY: 84		AUX: 1100	
+VIRT: 6		PHY: -1		AUX: 0000	
+VIRT: 7		PHY: -1		AUX: 0000	
+VIRT: 8		PHY: 76		AUX: 0110	
+VIRT: 9		PHY: 77		AUX: 0110	
+debug> Heap 1 in Disk: -1	Heap 2 in Disk: -1
+Code 1 in Disk: 70	Code 2 in Disk: 71
+Code 3 in Disk: -1	Code 4 in Disk: -1
+Stack 1 in Disk: -1	Stack 2 in Disk: -1
+debug> Previous instruction at IP = 1414: BRKP
+Mode: KERNEL 	 PID: 1
+Next instruction at IP = 1416, Page No. = 2: RESTORE
+debug> EC: 0
+debug> EIP: 2560
+debug> EPN: 2
+debug> VIRT: 0		PHY: 63		AUX: 0100	
+VIRT: 1		PHY: 64		AUX: 0100	
+VIRT: 2		PHY: 85		AUX: 1110	
+VIRT: 3		PHY: 86		AUX: 1110	
+VIRT: 4		PHY: 83		AUX: 0100	
+VIRT: 5		PHY: 84		AUX: 1100	
+VIRT: 6		PHY: -1		AUX: 0000	
+VIRT: 7		PHY: -1		AUX: 0000	
+VIRT: 8		PHY: 76		AUX: 0110	
+VIRT: 9		PHY: 77		AUX: 0110	
+debug> Heap 1 in Disk: -1	Heap 2 in Disk: -1
+Code 1 in Disk: 70	Code 2 in Disk: 71
+Code 3 in Disk: -1	Code 4 in Disk: -1
+Stack 1 in Disk: -1	Stack 2 in Disk: -1
+debug> 42
+43
+Machine is halting.

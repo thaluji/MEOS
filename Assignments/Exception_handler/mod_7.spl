@@ -1,0 +1,190 @@
+// ------------------------------------------------------------------
+// Module 7 : Boot Module
+//
+// loadi(memory_page, disk_block)
+//
+// New in this stage: the memory copy of the inode table (Exec looks the
+// executable up there) and the Memory Free List, which from now on is
+// the single source of truth for which physical pages are in use.
+// ------------------------------------------------------------------
+
+// load exception handler from disk blocks 15-16 to memory pages 2-3
+loadi(2, 15);
+loadi(3, 16);
+
+// load timer interrupt from disk blocks 17-18 to memory pages 4-5
+loadi(4, 17);
+loadi(5, 18);
+
+// disk interrupt
+loadi(6, 19);
+loadi(7, 20);
+
+// load console interrupt handler from disk blocks 21-22 to memory pages 8-9
+loadi(8, 21);
+loadi(9, 22);
+
+// load int 6 (Read) from disk blocks 27-28 to memory pages 14-15
+loadi(14, 27);
+loadi(15, 28);
+
+// load int 7 (Write) from disk blocks 29-30 to memory pages 16-17
+loadi(16, 29);
+loadi(17, 30);
+
+// load int 9 (Exec) from disk blocks 33-34 to memory pages 20-21
+loadi(20, 33);
+loadi(21, 34);
+
+// load int 10 (Exit) from disk blocks 35-36 to memory pages 22-23
+loadi(22, 35);
+loadi(23, 36);
+
+// load module 0 (resource manager) from disk blocks 53-54 to memory pages 40-41
+loadi(40, 53);
+loadi(41, 54);
+
+// load module 1 (process manager) from disk blocks 55-56 to memory pages 42-43
+loadi(42, 55);
+loadi(43, 56);
+
+// load module 2 (memory manager) from disk blocks 57-58 to memory pages 44-45
+loadi(44, 57);
+loadi(45, 58);
+
+// load module 4 (device manager) from disk blocks 61-62 to memory pages 48-49
+loadi(48, 61);
+loadi(49, 62);
+
+// load module 5 (scheduler) from disk blocks 63-64 to memory pages 50-51
+loadi(50, 63);
+loadi(51, 64);
+
+// load the inode table and the user table from disk blocks 3-4 to memory
+// pages 59-60. Exec searches this memory copy, never the disk.
+loadi(59, 3);
+loadi(60, 4);
+
+// Load the disk free list for Release Block.
+loadi(61, 2);
+
+// load library code from disk blocks 13-14 to memory pages 63-64
+loadi(63, 13);
+loadi(64, 14);
+
+// load init code from disk blocks 7-8 to memory pages 83-84
+loadi(83, 7);
+loadi(84, 8);
+
+// ---- Memory Free List ----
+// Pages 0-75 hold the OS, the interrupt routines, the modules, the
+// library and the IDLE image. They are marked permanently in use so the
+// memory manager never hands them out. Pages 76-127 are the user pool.
+alias i R0;
+i = 0;
+while (i < NUM_MEM_PAGES) do
+    if (i < 76) then
+        [MEMORY_FREE_LIST + i] = 1;
+    else
+        [MEMORY_FREE_LIST + i] = 0;
+    endif;
+    i = i + 1;
+endwhile;
+
+// Pages already spoken for out of the user pool:
+//      76, 77  INIT stack          81      IDLE stack
+//      78, 79  IDLE heap           82      IDLE user area
+//      80      INIT user area      83, 84  INIT code
+//                                  85, 86  INIT heap
+[MEMORY_FREE_LIST + 76] = 1;
+[MEMORY_FREE_LIST + 77] = 1;
+[MEMORY_FREE_LIST + 78] = 1;
+[MEMORY_FREE_LIST + 79] = 1;
+[MEMORY_FREE_LIST + 80] = 1;
+[MEMORY_FREE_LIST + 81] = 1;
+[MEMORY_FREE_LIST + 82] = 1;
+[MEMORY_FREE_LIST + 83] = 1;
+[MEMORY_FREE_LIST + 84] = 1;
+[MEMORY_FREE_LIST + 85] = 1;
+[MEMORY_FREE_LIST + 86] = 1;
+
+// ---- System Status Table ----
+[SYSTEM_STATUS_TABLE + 0] = 1;      // current user id (root)
+[SYSTEM_STATUS_TABLE + 2] = 41;     // 52 pages in the pool, 11 taken
+[SYSTEM_STATUS_TABLE + 3] = 0;      // nobody waiting on memory
+
+// For INIT
+PTBR = PAGE_TABLE_BASE + 20;
+PTLR = 10;
+
+// Initialize the page table for INIT program
+// library
+[PTBR + 0] = 63;
+[PTBR + 1] = "0100";
+[PTBR + 2] = 64;
+[PTBR + 3] = "0100";
+
+// Heap
+[PTBR + 4] = 85;
+[PTBR + 5] = "0110";
+[PTBR + 6] = 86;
+[PTBR + 7] = "0110";
+
+// code
+[PTBR + 8] = 83;
+[PTBR + 9] = "0100";
+[PTBR + 10] = 84;
+[PTBR + 11] = "0100";
+[PTBR + 12] = -1;
+[PTBR + 13] = "0000";
+[PTBR + 14] = -1;
+[PTBR + 15] = "0000";
+
+// Stack
+[PTBR + 16] = 76;
+[PTBR + 17] = "0110";
+[PTBR + 18] = 77;
+[PTBR + 19] = "0110";
+
+// setting up process table for INIT
+[PROCESS_TABLE + 16 + 1] = 1;
+[PROCESS_TABLE + 16 + 4] = CREATED;
+[PROCESS_TABLE + 16 + 11] = 80;
+[PROCESS_TABLE + 16 + 13] = 8 * 512;
+[PROCESS_TABLE + 16 + 12] = 0;
+[PROCESS_TABLE + 16 + 14] = PAGE_TABLE_BASE + 20;
+[PROCESS_TABLE + 16 + 15] = 10;
+
+[76 * 512] = [83 * 512 + 1];
+
+// Every other slot in the process table is free.
+i = 2;
+while (i < MAX_PROC_NUM) do
+    [PROCESS_TABLE + i * 16 + 4] = TERMINATED;
+    i = i + 1;
+endwhile;
+
+// Initialize INIT's resource table in the last 16 words of its user area.
+i = 496;
+while (i < 512) do
+    [80 * 512 + i] = -1;
+    i = i + 1;
+endwhile;
+
+// Start every disk map empty; INIT and IDLE have boot-loaded code.
+i = 0;
+while (i < MAX_PROC_NUM * 10) do
+    [DISK_MAP_TABLE + i] = -1;
+    i = i + 1;
+endwhile;
+[DISK_MAP_TABLE + 4] = 11;
+[DISK_MAP_TABLE + 5] = 12;
+[DISK_MAP_TABLE + 10 + 4] = 7;
+[DISK_MAP_TABLE + 10 + 5] = 8;
+
+// Both devices are free before the first process runs.
+[TERMINAL_STATUS_TABLE] = 0;
+[TERMINAL_STATUS_TABLE + 1] = -1;
+[DISK_STATUS_TABLE] = 0;
+
+return;

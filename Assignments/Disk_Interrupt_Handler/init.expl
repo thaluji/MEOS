@@ -1,0 +1,15 @@
+// Shell version I: successful Exec replaces the shell; failures retry.
+int main() {
+    decl
+        str name;
+        int result;
+    enddecl
+    begin
+        while (1 == 1) do
+            read(name);
+            result = exposcall("Exec", name);
+            write(result);
+        endwhile;
+        return 0;
+    end
+}

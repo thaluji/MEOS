@@ -1,0 +1,13 @@
+int main() {
+    decl
+        int n;
+    enddecl
+    begin
+        n = 1;
+        while (n < 100) do
+            write(n);
+            n = n + 2;
+        endwhile;
+        return 0;
+    end
+}

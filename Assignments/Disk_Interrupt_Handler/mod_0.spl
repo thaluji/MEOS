@@ -1,0 +1,104 @@
+// ------------------------------------------------------------------
+// Module 0 : Resource Manager
+//
+// Arguments (SPL module calling convention):
+//      R1 - function number
+//      R2 - PID of the process invoking the module
+// Return value:
+//      R0
+//
+// Functions implemented in this stage:
+//      3 (ACQUIRE_DISK)     - lock the disk for the given process
+//      8 (ACQUIRE_TERMINAL) - lock the terminal for the given process
+//      9 (RELEASE_TERMINAL) - unlock the terminal and wake up waiters
+//
+// RELEASE_TERMINAL is now called from two places: the Terminal Write
+// function (the writer releases the terminal itself) and the console
+// interrupt handler (the reader is asleep, so the interrupt handler
+// releases the terminal on its behalf).
+// ------------------------------------------------------------------
+
+alias functionNum R1;
+alias currentPID R2;
+alias returnValue R0;
+
+if (functionNum == ACQUIRE_TERMINAL) then
+
+    // Busy wait until the terminal becomes free.
+    // STATUS (word 0 of the Terminal Status Table) is 1 when the
+    // terminal is held by some process, 0 when it is free.
+    while ([TERMINAL_STATUS_TABLE] != 0) do
+
+        // Give up the CPU. The scheduler will run this process again
+        // only after somebody releases the terminal, but the terminal
+        // may have been grabbed by another woken up process by then -
+        // hence the loop and not a single wait.
+        [PROCESS_TABLE + currentPID * 16 + 4] = WAIT_TERMINAL;
+
+        multipush(R1, R2);
+
+        call MOD_5;
+
+        multipop(R1, R2);
+
+    endwhile;
+
+    // Terminal is free - take it.
+    [TERMINAL_STATUS_TABLE] = 1;
+    [TERMINAL_STATUS_TABLE + 1] = currentPID;
+
+    returnValue = 0;
+    return;
+
+else
+
+    if (functionNum == RELEASE_TERMINAL) then
+
+        // A process may release the terminal only if it holds it.
+        if (currentPID != [TERMINAL_STATUS_TABLE + 1]) then
+            returnValue = -1;
+            return;
+        else
+
+            [TERMINAL_STATUS_TABLE] = 0;
+
+            // Wake up every process blocked on the terminal. For a read
+            // this is what un-blocks the process that issued the IN
+            // instruction and is now sitting in WAIT_TERMINAL.
+            alias i R3;
+            i = 0;
+            while (i < MAX_PROC_NUM) do
+                if ([PROCESS_TABLE + i * 16 + 4] == WAIT_TERMINAL) then
+                    [PROCESS_TABLE + i * 16 + 4] = READY;
+                endif;
+                i = i + 1;
+            endwhile;
+
+            returnValue = 0;
+            return;
+
+        endif;
+
+    else
+        if (functionNum == ACQUIRE_DISK) then
+            while ([DISK_STATUS_TABLE] == 1) do
+
+                [PROCESS_TABLE + currentPID * 16 + 4] = WAIT_DISK;
+                multipush(R1, R2);
+                call MOD_5;
+                multipop(R1, R2);
+
+            endwhile;
+
+            [DISK_STATUS_TABLE] = 1;
+            [DISK_STATUS_TABLE + 4] = currentPID;
+            returnValue = 0;
+            return;
+        else
+            // Unknown function number for this module.
+            returnValue = -1;
+            return;
+        endif;
+    endif;
+
+endif;

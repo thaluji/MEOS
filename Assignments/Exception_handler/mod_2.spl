@@ -1,0 +1,149 @@
+// ------------------------------------------------------------------
+// Module 2 : Memory Manager
+//
+// Arguments:
+//      R1 - function number
+//      R2 - function 2: page to release; functions 4/5: disk block
+// Return value:
+//      R0 - functions 1/5: physical page; function 5: -1 for invalid block
+//
+// Functions implemented in this stage:
+//      1 (GET_FREE_PAGE) - allocate one free page from the user pool
+//      2 (RELEASE_PAGE)  - give one page back
+//      4 (RELEASE_BLOCK) - release a swap block reference
+//      5 (GET_CODE_PAGE) - share a resident code page or load it
+//
+// The Memory Free List holds a *reference count* per physical page, not
+// a boolean: a code page mapped by two processes is
+// only genuinely free once the count reaches zero.
+// ------------------------------------------------------------------
+
+alias functionNumber R1;
+
+if (functionNumber == GET_FREE_PAGE) then
+
+    // Announce that we may be about to sleep on memory. The swapper uses
+    // this count in later stages; here it just keeps the bookkeeping honest.
+    [SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] + 1;
+
+    while ([SYSTEM_STATUS_TABLE + 2] == 0) do
+        [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 4] = WAIT_MEM;
+
+        multipush(R1);
+
+        call MOD_5;
+
+        multipop(R1);
+    endwhile;
+
+    [SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] - 1;
+
+    // Pages 0-75 belong to the OS and are permanently marked in use, so
+    // the search only ever runs over the user pool.
+    alias pageNumber R2;
+    pageNumber = 76;                // first page of the user pool
+
+    while (pageNumber < NUM_MEM_PAGES) do
+        if ([MEMORY_FREE_LIST + pageNumber] == 0) then
+            break;
+        endif;
+        pageNumber = pageNumber + 1;
+    endwhile;
+
+    [MEMORY_FREE_LIST + pageNumber] = 1;
+    [SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+
+    R0 = pageNumber;
+    return;
+
+else
+
+    if (functionNumber == RELEASE_PAGE) then
+
+        alias pageNumber R2;
+
+        [MEMORY_FREE_LIST + pageNumber] = [MEMORY_FREE_LIST + pageNumber] - 1;
+
+        // Only a page that nobody maps any more counts as free.
+        if ([MEMORY_FREE_LIST + pageNumber] == 0) then
+            [SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] + 1;
+
+            // Somebody may have been waiting for exactly this.
+            alias i R3;
+            i = 0;
+            while (i < MAX_PROC_NUM) do
+                if ([PROCESS_TABLE + 16 * i + 4] == WAIT_MEM) then
+                    [PROCESS_TABLE + 16 * i + 4] = READY;
+                endif;
+                i = i + 1;
+            endwhile;
+        endif;
+
+        R0 = 0;
+        return;
+
+    else
+
+        if (functionNumber == RELEASE_BLOCK) then
+            [DISK_FREE_LIST + R2] = [DISK_FREE_LIST + R2] - 1;
+            R0 = 0;
+            return;
+        endif;
+
+        if (functionNumber == GET_CODE_PAGE) then
+            alias blockNumber R2;
+            alias i R3;
+            alias j R4;
+            alias pageNumber R5;
+            alias pageFlags R6;
+
+            // Never interpret an absent executable block as a disk address.
+            if (blockNumber < 0 || blockNumber >= DISK_SIZE) then
+                R0 = -1;
+                return;
+            endif;
+
+            i = 0;
+            while (i < MAX_PROC_NUM) do
+                if ([PROCESS_TABLE + i * 16 + 4] != TERMINATED) then
+                    j = 4;
+                    while (j < 8) do
+                        if ([DISK_MAP_TABLE + 10 * i + j] == blockNumber) then
+                            pageNumber = [PAGE_TABLE_BASE + 20 * i + 2 * j];
+                            pageFlags = [PAGE_TABLE_BASE + 20 * i + 2 * j + 1];
+                            // Referenced/dirty bits can change; valid is bit 1.
+                            if (pageNumber != -1 && (pageFlags == "0100" || pageFlags == "1100" || pageFlags == "0101" || pageFlags == "1101")) then
+                                [MEMORY_FREE_LIST + pageNumber] = [MEMORY_FREE_LIST + pageNumber] + 1;
+                                R0 = pageNumber;
+                                return;
+                            endif;
+                        endif;
+                        j = j + 1;
+                    endwhile;
+                endif;
+                i = i + 1;
+            endwhile;
+
+            // Both allocation and disk I/O may schedule another process.
+            multipush(R1, R2);
+            R1 = GET_FREE_PAGE;
+            call MOD_2;
+            multipop(R1, R2);
+            pageNumber = R0;
+
+            multipush(R5);
+            R1 = DISK_LOAD;
+            R4 = blockNumber;
+            R2 = [SYSTEM_STATUS_TABLE + 1];
+            R3 = pageNumber;
+            call MOD_4;
+            multipop(R5);
+
+            R0 = pageNumber;
+            return;
+        endif;
+    endif;
+endif;
+
+R0 = -1;
+return;
