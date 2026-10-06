@@ -1,0 +1,20 @@
+// Stage 20 demo: parent and child replace themselves independently.
+int main() {
+    decl
+        int pid, result;
+    enddecl
+    begin
+        pid = exposcall("Fork");
+        if (pid == -1) then
+            write(pid);
+        else
+            if (pid == 0) then
+                result = exposcall("Exec", "odd.xsm");
+            else
+                result = exposcall("Exec", "even.xsm");
+            endif;
+            write(result);
+        endif;
+        return 0;
+    end
+}

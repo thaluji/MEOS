@@ -1,0 +1,22 @@
+load --library ../expl/library.lib
+load --os ../Assignments/Disk_Interrupt_Handler/osloader.xsm
+load --init ../Assignments/Semaphore_module/init.xsm
+load --idle ../Assignments/Program_Loader_module/idle.xsm
+load --exhandler ../Assignments/Exception_handler/exhandler.xsm
+load --int=timer ../Assignments/Program_Loader_module/timer.xsm
+load --int=disk ../Assignments/Disk_Interrupt_Handler/int_2.xsm
+load --int=console ../Assignments/Program_Loader_module/console.xsm
+load --int=6 ../Assignments/Program_Loader_module/int_6.xsm
+load --int=7 ../Assignments/Program_Loader_module/int_7.xsm
+load --int=8 ../Assignments/Semaphore_module/int_8.xsm
+load --int=9 ../Assignments/Semaphore_module/int_9.xsm
+load --int=10 ../Assignments/Fork_system_call/int_10.xsm
+load --int=13 ../Assignments/Semaphore_module/int_13.xsm
+load --int=14 ../Assignments/Semaphore_module/int_14.xsm
+load --module 0 ../Assignments/Semaphore_module/mod_0.xsm
+load --module 1 ../Assignments/Semaphore_module/mod_1.xsm
+load --module 2 ../Assignments/Exception_handler/mod_2.xsm
+load --module 4 ../Assignments/Disk_Interrupt_Handler/mod_4.xsm
+load --module 5 ../Assignments/Fork_system_call/mod_5.xsm
+load --module 7 ../Assignments/Semaphore_module/mod_7.xsm
+load --exec ../Assignments/Semaphore_module/semrw.xsm

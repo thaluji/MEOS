@@ -1,0 +1,81 @@
+// INT 14: SemLock (19) and SemUnLock (20).
+// User stack: SP-5 = syscall number, SP-4 = local SEMID,
+// SP-1 = return value. General registers are caller-saved; preserve BP.
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+
+alias currentPID R5;
+alias processEntry R6;
+alias userSP R7;
+alias syscallNumber R8;
+alias resourceBase R9;
+alias semid R10;
+alias result R11;
+alias semaphoreIndex R12;
+alias semaphoreEntry R13;
+alias waitingPID R14;
+alias waitingEntry R15;
+
+currentPID = [SYSTEM_STATUS_TABLE + 1];
+processEntry = PROCESS_TABLE + currentPID * 16;
+userSP = [processEntry + 13];
+PTBR = [processEntry + 14];
+syscallNumber = [[PTBR + 2 * ((userSP - 5) / 512)] * 512 + (userSP - 5) % 512];
+semid = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + (userSP - 4) % 512];
+[processEntry + 9] = syscallNumber;
+resourceBase = [processEntry + 11] * 512 + RESOURCE_TABLE_OFFSET;
+
+result = -1;
+if (syscallNumber == INT_SEMLOCK || syscallNumber == INT_SEMUNLOCK) then
+    // Check the range before reading the resource entry.
+    if (semid >= 0 && semid < 8) then
+        if ([resourceBase + semid * 2] == SEMAPHORE) then
+            semaphoreIndex = [resourceBase + semid * 2 + 1];
+            semaphoreEntry = SEMAPHORE_TABLE + semaphoreIndex * 4;
+
+            if (syscallNumber == INT_SEMLOCK) then
+                // Locking a semaphore already held by this process succeeds.
+                // Otherwise, sleep until free and recheck after every wakeup.
+                while ([semaphoreEntry + 1] != -1 && [semaphoreEntry + 1] != currentPID) do
+                    [processEntry + 4] = WAIT_SEMAPHORE;
+                    [processEntry + 5] = semaphoreIndex;
+
+                    // Another process may overwrite every working register.
+                    // Keep this handler's continuation on its kernel stack.
+                    multipush(R5, R6, R7, R8, R9, R10, R11, R12, R13, R14, R15);
+                    call MOD_5;
+                    multipop(R5, R6, R7, R8, R9, R10, R11, R12, R13, R14, R15);
+                endwhile;
+
+                [semaphoreEntry + 1] = currentPID;
+                result = 0;
+            else
+                // Unlocking an already-unlocked semaphore is a successful
+                // no-op under the eXpOS algorithm. A different owner is -2.
+                result = 0;
+                if ([semaphoreEntry + 1] != -1) then
+                    if ([semaphoreEntry + 1] != currentPID) then
+                        result = -2;
+                    else
+                        [semaphoreEntry + 1] = -1;
+                        waitingPID = 0;
+                        while (waitingPID < MAX_PROC_NUM) do
+                            waitingEntry = PROCESS_TABLE + waitingPID * 16;
+                            if ([waitingEntry + 4] == WAIT_SEMAPHORE && [waitingEntry + 5] == semaphoreIndex) then
+                                [waitingEntry + 4] = READY;
+                            endif;
+                            waitingPID = waitingPID + 1;
+                        endwhile;
+                    endif;
+                endif;
+            endif;
+        endif;
+    endif;
+endif;
+
+// Translate the return slot separately: the stack frame can span pages.
+[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512] = result;
+[processEntry + 9] = 0;
+SP = userSP;
+ireturn;

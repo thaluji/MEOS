@@ -1,0 +1,11 @@
+// Boot-loaded INIT launches the demand-paged reader/writer demo.
+int main() {
+    decl
+        int result;
+    enddecl
+    begin
+        result = exposcall("Exec", "semrw.xsm");
+        write(result);
+        return 0;
+    end
+}

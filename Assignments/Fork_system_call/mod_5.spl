@@ -1,0 +1,47 @@
+// Save the outgoing kernel continuation and BP.
+alias currentPID R0;
+alias processEntry R1;
+alias i R2;
+alias state R3;
+alias newPID R4;
+alias scanned R5;
+
+currentPID = [SYSTEM_STATUS_TABLE + 1];
+processEntry = PROCESS_TABLE + 16 * currentPID;
+multipush(BP);
+[processEntry + 12] = SP % 512;
+[processEntry + 14] = PTBR;
+[processEntry + 15] = PTLR;
+
+// Wrap through every user PID, including the caller if it alone is
+// runnable. IDLE is the fallback, never preferred over a ready user.
+newPID = IDLE_PROCESS;
+i = (currentPID + 1) % MAX_PROC_NUM;
+scanned = 0;
+while (scanned < MAX_PROC_NUM) do
+    state = [PROCESS_TABLE + i * 16 + 4];
+    if (i != IDLE_PROCESS && (state == READY || state == CREATED)) then
+        newPID = i;
+        break;
+    endif;
+    i = (i + 1) % MAX_PROC_NUM;
+    scanned = scanned + 1;
+endwhile;
+
+processEntry = PROCESS_TABLE + newPID * 16;
+PTBR = [processEntry + 14];
+PTLR = [processEntry + 15];
+[SYSTEM_STATUS_TABLE + 1] = newPID;
+
+if ([processEntry + 4] == CREATED) then
+    BP = [[processEntry + 11] * 512];
+    SP = [processEntry + 13];
+    [processEntry + 4] = RUNNING;
+    [processEntry + 9] = 0;
+    ireturn;
+endif;
+
+SP = [processEntry + 11] * 512 + [processEntry + 12];
+[processEntry + 4] = RUNNING;
+multipop(BP);
+return;

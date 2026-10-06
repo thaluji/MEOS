@@ -1,0 +1,167 @@
+// Semaphore-stage Process Manager: release references before freeing user areas.
+alias functionNumber R1;
+alias currentPID R2;
+
+// A reserved PCB is not runnable until Fork publishes CREATED.
+if (functionNumber == GET_PCB_ENTRY) then
+    R0 = 0;
+    while (R0 < MAX_PROC_NUM) do
+        if ([PROCESS_TABLE + R0 * 16 + 4] == TERMINATED) then
+            R3 = 0;
+            while (R3 < 16) do
+                [PROCESS_TABLE + R0 * 16 + R3] = 0;
+                R3 = R3 + 1;
+            endwhile;
+            [PROCESS_TABLE + R0 * 16 + 1] = R0;
+            [PROCESS_TABLE + R0 * 16 + 4] = ALLOCATED;
+            [PROCESS_TABLE + R0 * 16 + 14] = PAGE_TABLE_BASE + R0 * 20;
+            [PROCESS_TABLE + R0 * 16 + 15] = 10;
+            // Clear stale mappings before any allocation can schedule away.
+            R3 = 0;
+            while (R3 < 10) do
+                [PAGE_TABLE_BASE + R0 * 20 + 2 * R3] = -1;
+                [PAGE_TABLE_BASE + R0 * 20 + 2 * R3 + 1] = "0000";
+                [DISK_MAP_TABLE + R0 * 10 + R3] = -1;
+                R3 = R3 + 1;
+            endwhile;
+            return;
+        endif;
+        R0 = R0 + 1;
+    endwhile;
+    R0 = -1;
+    return;
+endif;
+
+if (functionNumber == FREE_USER_AREA_PAGE) then
+
+    alias userAreaPage R3;
+    userAreaPage = [PROCESS_TABLE + 16 * currentPID + 11];
+
+    // Resource records live in this page, so detach them before freeing it.
+    alias resourceWord R4;
+    resourceWord = RESOURCE_TABLE_OFFSET;
+    while (resourceWord < 512) do
+        if ([userAreaPage * 512 + resourceWord] == SEMAPHORE) then
+            multipush(R1, R2, R3, R4);
+            R0 = [userAreaPage * 512 + resourceWord + 1];
+            R3 = currentPID;
+            R2 = R0;
+            R1 = RELEASE_SEMAPHORE;
+            call MOD_0;
+            multipop(R1, R2, R3, R4);
+        endif;
+        [userAreaPage * 512 + resourceWord] = -1;
+        [userAreaPage * 512 + resourceWord + 1] = -1;
+        resourceWord = resourceWord + 2;
+    endwhile;
+
+    multipush(R1, R2, R3);
+
+    R1 = RELEASE_PAGE;
+    R2 = userAreaPage;
+
+    call MOD_2;
+
+    multipop(R1, R2, R3);
+
+    R0 = 0;
+    return;
+
+endif;
+
+if (functionNumber == EXIT_PROCESS) then
+
+    multipush(R1, R2);
+
+    // Order matters: the page table has to be walked before it is
+    // forgotten, and the user area page is released last because it is
+    // still holding the kernel stack we are standing on.
+    R1 = FREE_PAGE_TABLE;
+    R2 = currentPID;
+    call MOD_1;
+
+    // FREE_USER_AREA_PAGE will release and invalidate resource entries.
+
+    // Children outlive their parent; do not attach them to a reused PID.
+    R3 = 1;
+    while (R3 < MAX_PROC_NUM) do
+        if ([PROCESS_TABLE + R3 * 16 + 4] != TERMINATED && [PROCESS_TABLE + R3 * 16 + 2] == currentPID) then
+            [PROCESS_TABLE + R3 * 16 + 2] = -1;
+        endif;
+        R3 = R3 + 1;
+    endwhile;
+
+    R1 = FREE_USER_AREA_PAGE;
+    R2 = currentPID;
+    call MOD_1;
+
+    multipop(R1, R2);
+
+    [PROCESS_TABLE + 16 * currentPID + 4] = TERMINATED;
+
+    R0 = 0;
+    return;
+
+endif;
+
+if (functionNumber == FREE_PAGE_TABLE) then
+
+    alias pageTable R3;
+    alias entries R4;
+
+    pageTable = [PROCESS_TABLE + 16 * currentPID + 14];
+    entries = [PROCESS_TABLE + 16 * currentPID + 15];
+
+    // Library references are counted too; IDLE keeps them resident.
+    alias i R5;
+    alias pageNumber R6;
+
+    i = 0;
+    while (i < entries) do
+
+        pageNumber = [pageTable + 2 * i];
+
+        if (pageNumber != -1) then
+
+            multipush(R1, R2, R3, R4, R5, R6);
+
+            R1 = RELEASE_PAGE;
+            R2 = pageNumber;
+
+            call MOD_2;
+
+            multipop(R1, R2, R3, R4, R5, R6);
+
+            [pageTable + 2 * i] = -1;
+            [pageTable + 2 * i + 1] = "0000";
+
+        endif;
+
+        i = i + 1;
+    endwhile;
+
+    // Only heap/stack disk blocks are temporary swap storage. Executable
+    // code blocks belong to the file and must not be released on exit.
+    i = 0;
+    while (i < 10) do
+        if (i == 2 || i == 3 || i == 8 || i == 9) then
+            if ([DISK_MAP_TABLE + currentPID * 10 + i] != -1) then
+                multipush(R1, R2, R3, R4, R5, R6);
+                R1 = RELEASE_BLOCK;
+                R2 = [DISK_MAP_TABLE + currentPID * 10 + i];
+                call MOD_2;
+                multipop(R1, R2, R3, R4, R5, R6);
+            endif;
+        endif;
+        [DISK_MAP_TABLE + currentPID * 10 + i] = -1;
+        i = i + 1;
+    endwhile;
+
+    R0 = 0;
+    return;
+
+endif;
+
+// Unknown function number for this module.
+R0 = -1;
+return;

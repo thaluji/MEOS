@@ -1,0 +1,80 @@
+// Parent reads; two children write odd/even numbers into one shared slot.
+// The heap object is shared by Fork; ordinary local variables are private.
+type
+    Buffer {
+        int value;
+        int full;
+        int abort;
+    }
+endtype
+
+int main() {
+    decl
+        Buffer buffer;
+        int result, semid, pid, number, consumed, status;
+    enddecl
+    begin
+        result = initialize();
+        buffer = alloc();
+        buffer.value = 0;
+        buffer.full = 0;
+        buffer.abort = 0;
+        semid = exposcall("Semget");
+        if (semid < 0) then
+            write("Semget failed");
+        else
+            number = 0;
+            pid = exposcall("Fork");
+            if (pid == 0) then
+                number = 1;
+            else
+                if (pid > 0) then
+                    pid = exposcall("Fork");
+                    if (pid == 0) then
+                        number = 2;
+                    endif;
+                endif;
+            endif;
+
+            if (pid < 0) then
+                // Let an already-created writer stop if the second Fork fails.
+                result = exposcall("SemLock", semid);
+                buffer.abort = 1;
+                result = exposcall("SemUnLock", semid);
+                write("Fork failed");
+            else
+                if (number == 0) then
+                    consumed = 0;
+                    while (consumed < 100) do
+                        result = exposcall("SemLock", semid);
+                        status = buffer.full;
+                        if (status == 1) then
+                            write(buffer.value);
+                            buffer.full = 0;
+                            consumed = consumed + 1;
+                        endif;
+                        result = exposcall("SemUnLock", semid);
+                    endwhile;
+                else
+                    while (number <= 100) do
+                        result = exposcall("SemLock", semid);
+                        status = buffer.abort;
+                        if (status == 1) then
+                            number = 102;
+                        else
+                            status = buffer.full;
+                            if (status == 0) then
+                                buffer.value = number;
+                                buffer.full = 1;
+                                number = number + 2;
+                            endif;
+                        endif;
+                        result = exposcall("SemUnLock", semid);
+                    endwhile;
+                endif;
+            endif;
+            // Exit automatically releases this process's semaphore reference.
+        endif;
+        return 0;
+    end
+}

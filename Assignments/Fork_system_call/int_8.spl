@@ -1,0 +1,106 @@
+// Stage 20: Fork. General registers are caller-saved; BP is inherited.
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = INT_FORK;
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+
+R1 = GET_PCB_ENTRY;
+call MOD_1;
+
+alias childPID R5;
+alias parentEntry R6;
+alias childEntry R7;
+alias childPT R8;
+alias i R9;
+alias j R10;
+alias userSP R11;
+
+childPID = R0;
+parentEntry = PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16;
+userSP = [parentEntry + 13];
+
+if (childPID == -1) then
+    [[PTBR + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512] = -1;
+    [parentEntry + 9] = 0;
+    SP = userSP;
+    ireturn;
+endif;
+
+childEntry = PROCESS_TABLE + childPID * 16;
+childPT = [childEntry + 14];
+
+// Reserve the PCB before any allocation can block. Keep it ALLOCATED
+// until every mapping, stack word and return value has been initialized.
+// Both heap pages must exist at fork, even if neither has been touched.
+i = 2;
+while (i < 4) do
+    if ([PTBR + 2 * i] == -1) then
+        multipush(R5, R6, R7, R8, R9, R10, R11);
+        R1 = GET_FREE_PAGE;
+        call MOD_2;
+        multipop(R5, R6, R7, R8, R9, R10, R11);
+        [PTBR + 2 * i] = R0;
+        [PTBR + 2 * i + 1] = "0110";
+    endif;
+    i = i + 1;
+endwhile;
+
+// Allocate two private stack pages; copy each page independently since
+// consecutive logical pages need not occupy consecutive physical pages.
+i = 8;
+while (i < 10) do
+    multipush(R5, R6, R7, R8, R9, R10, R11);
+    R1 = GET_FREE_PAGE;
+    call MOD_2;
+    multipop(R5, R6, R7, R8, R9, R10, R11);
+    [childPT + 2 * i] = R0;
+    [childPT + 2 * i + 1] = [PTBR + 2 * i + 1];
+    j = 0;
+    while (j < 512) do
+        [R0 * 512 + j] = [[PTBR + 2 * i] * 512 + j];
+        j = j + 1;
+    endwhile;
+    i = i + 1;
+endwhile;
+
+multipush(R5, R6, R7, R8, R9, R10, R11);
+R1 = GET_FREE_PAGE;
+call MOD_2;
+multipop(R5, R6, R7, R8, R9, R10, R11);
+[childEntry + 11] = R0;
+
+// Only resources are copied from the user area, never the kernel stack.
+i = RESOURCE_TABLE_OFFSET;
+while (i < 512) do
+    [R0 * 512 + i] = [[parentEntry + 11] * 512 + i];
+    i = i + 1;
+endwhile;
+[R0 * 512] = BP;
+
+[childEntry + 2] = [parentEntry + 1];
+[childEntry + 3] = [parentEntry + 3];
+[childEntry + 6] = [parentEntry + 6];
+[childEntry + 7] = [parentEntry + 7];
+[childEntry + 10] = [parentEntry + 10];
+[childEntry + 13] = userSP;
+// Get PCB Entry already set PID/PTBR/PTLR and zeroed TICK/MODE/KPTR.
+
+// Library, heap and resident code are shared; absent code stays absent
+// and can be demand-loaded using the inherited disk map.
+i = 0;
+while (i < 8) do
+    [childPT + 2 * i] = [PTBR + 2 * i];
+    [childPT + 2 * i + 1] = [PTBR + 2 * i + 1];
+    if ([PTBR + 2 * i] != -1) then
+        [MEMORY_FREE_LIST + [PTBR + 2 * i]] = [MEMORY_FREE_LIST + [PTBR + 2 * i]] + 1;
+    endif;
+    [DISK_MAP_TABLE + childPID * 10 + i] = [DISK_MAP_TABLE + [parentEntry + 1] * 10 + i];
+    i = i + 1;
+endwhile;
+// Get PCB Entry initialized stack disk-map entries to -1 (no swapping yet).
+
+[[childPT + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512] = 0;
+[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512] = childPID;
+[childEntry + 4] = CREATED;
+[parentEntry + 9] = 0;
+SP = userSP;
+ireturn;

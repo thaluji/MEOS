@@ -1,0 +1,93 @@
+// INT 13: Semget (17) and Semrelease (18).
+// User stack: SP-5 = syscall number, SP-4 = SEMID for Semrelease,
+// SP-1 = return value.
+// General registers are caller-saved, as in the existing syscall handlers.
+// BP is left unchanged.
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+
+alias currentPID R5;
+alias processEntry R6;
+alias userSP R7;
+alias syscallNumber R8;
+alias resourceBase R9;
+alias semid R10;
+alias result R11;
+
+currentPID = [SYSTEM_STATUS_TABLE + 1];
+processEntry = PROCESS_TABLE + currentPID * 16;
+userSP = [processEntry + 13];
+PTBR = [processEntry + 14];
+
+// Translate the syscall-number slot using its own logical page.
+syscallNumber = [[PTBR + 2 * ((userSP - 5) / 512)] * 512 + (userSP - 5) % 512];
+[processEntry + 9] = syscallNumber;
+
+resourceBase = [processEntry + 11] * 512 + RESOURCE_TABLE_OFFSET;
+
+// Invalid descriptors and unsupported calls return -1.
+result = -1;
+if (syscallNumber == INT_SEMGET) then
+
+    semid = 0;
+    while (semid < 8) do
+        // Each resource entry is two words. Only its type field marks
+        // it free; both files and semaphores occupy resource slots.
+        if ([resourceBase + semid * 2] == -1) then
+            break;
+        endif;
+        semid = semid + 1;
+    endwhile;
+
+    // If all eight slots are occupied, return -1 without allocating
+    // anything in the global Semaphore Table.
+    if (semid < 8) then
+        multipush(R5, R6, R7, R8, R9, R10, R11);
+        R1 = ACQUIRE_SEMAPHORE;
+        R2 = currentPID;
+        call MOD_0;
+        multipop(R5, R6, R7, R8, R9, R10, R11);
+
+        if (R0 == -1) then
+            // Global table full. Leave the local resource slot free.
+            result = -2;
+        else
+            // Publish the resource only after global allocation succeeds.
+            [resourceBase + semid * 2] = SEMAPHORE;
+            [resourceBase + semid * 2 + 1] = R0;
+            result = semid;
+        endif;
+    endif;
+
+else
+
+    if (syscallNumber == INT_SEMRELEASE) then
+        semid = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + (userSP - 4) % 512];
+
+        // Validate the range BEFORE indexing the local resource table.
+        if (semid >= 0 && semid < 8) then
+            if ([resourceBase + semid * 2] == SEMAPHORE) then
+                multipush(R5, R6, R7, R8, R9, R10, R11);
+                R1 = RELEASE_SEMAPHORE;
+                R2 = [resourceBase + semid * 2 + 1];
+                R3 = currentPID;
+                call MOD_0;
+                multipop(R5, R6, R7, R8, R9, R10, R11);
+
+                // This process no longer has access through this slot.
+                [resourceBase + semid * 2] = -1;
+                [resourceBase + semid * 2 + 1] = -1;
+                result = 0;
+            endif;
+        endif;
+    endif;
+
+endif;
+
+// The return slot may be on a different page from the syscall number
+// or return IP, so translate it independently.
+[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512] = result;
+[processEntry + 9] = 0;
+SP = userSP;
+ireturn;

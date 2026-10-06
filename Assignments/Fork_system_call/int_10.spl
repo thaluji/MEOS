@@ -1,0 +1,10 @@
+// Exit releases the caller and schedules another process, including IDLE
+// when the last user exits. A released kernel stack must never resume.
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = INT_EXIT;
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+R1 = EXIT_PROCESS;
+R2 = [SYSTEM_STATUS_TABLE + 1];
+call MOD_1;
+call MOD_5;
+halt;
