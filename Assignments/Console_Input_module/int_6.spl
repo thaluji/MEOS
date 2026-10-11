@@ -1,0 +1,77 @@
+// ------------------------------------------------------------------
+// INT 6 : Read system call  (system call number 7)
+//
+//      User stack on entry:
+//          userSP - 5 : system call number (7)
+//          userSP - 4 : file descriptor  (-1 => terminal)
+//          userSP - 3 : logical address of the word to fill in
+//          userSP - 1 : return value slot
+//
+// Only terminal input is supported at this stage. The real work is done
+// by Terminal Read (function 4) of the Device Manager (Module 4).
+// ------------------------------------------------------------------
+
+// Mark the process as executing system call number 7 (Read)
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 7;
+
+alias userSP R0;
+userSP = SP;
+
+// Save the user stack pointer in UPTR
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = userSP;
+
+// Switch to the kernel stack of the process
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+
+PTBR = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 14];
+
+alias physicalPageNum R1;
+alias offset R2;
+alias fileDescriptor R3;
+
+physicalPageNum = [PTBR + 2 * ((userSP - 4) / 512)];
+offset = (userSP - 4) % 512;
+fileDescriptor = [physicalPageNum * 512 + offset];
+
+if (fileDescriptor != -1) then
+
+    // Only the terminal is supported at this stage.
+    physicalPageNum = [PTBR + 2 * ((userSP - 1) / 512)];
+    offset = (userSP - 1) % 512;
+    [physicalPageNum * 512 + offset] = -1;
+
+else
+
+    alias wordAddress R4;
+    physicalPageNum = [PTBR + 2 * ((userSP - 3) / 512)];
+    offset = (userSP - 3) % 512;
+    wordAddress = [physicalPageNum * 512 + offset];
+
+    // ---- Invoke Terminal Read (Module 4, function 4) ----
+    multipush(R0, R1, R2, R3, R4);
+
+    R1 = TERMINAL_READ;                     // function number
+    R2 = [SYSTEM_STATUS_TABLE + 1];         // PID of the current process
+    R3 = wordAddress;                       // where the word has to go
+
+    call MOD_4;
+
+    // Terminal Read has no meaningful return value - R0 is ignored.
+    multipop(R0, R1, R2, R3, R4);
+
+    // Terminal Read parks the process in WAIT_TERMINAL, so by the time
+    // control gets here this process has been through the scheduler at
+    // least once. Reload PTBR before touching the user address space.
+    PTBR = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 14];
+
+    physicalPageNum = [PTBR + 2 * ((userSP - 1) / 512)];
+    offset = (userSP - 1) % 512;
+    [physicalPageNum * 512 + offset] = 0;
+
+endif;
+
+// Switch back to the user stack and return to user mode
+SP = userSP;
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+
+ireturn;

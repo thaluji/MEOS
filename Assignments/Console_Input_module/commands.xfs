@@ -1,0 +1,14 @@
+load --library ../expl/library.lib
+load --os ../Assignments/Console_Input_module/osloader.xsm
+load --init ../Assignments/Console_Input_module/init.xsm
+load --int=6 ../Assignments/Console_Input_module/int_6.xsm
+load --int=7 ../Assignments/Console_Input_module/int_7.xsm
+load --int=10 ../Assignments/Console_Input_module/int_10.xsm
+load --int=timer ../Assignments/Console_Input_module/timer.xsm
+load --int=console ../Assignments/Console_Input_module/console.xsm
+load --exhandler ../Assignments/Console_Input_module/haltprog.xsm
+load --idle ../Assignments/Console_Input_module/idle.xsm
+load --module 0 ../Assignments/Console_Input_module/mod_0.xsm
+load --module 4 ../Assignments/Console_Input_module/mod_4.xsm
+load --module 5 ../Assignments/Console_Input_module/mod_5.xsm
+load --module 7 ../Assignments/Console_Input_module/mod_7.xsm

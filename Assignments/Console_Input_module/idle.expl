@@ -1,0 +1,14 @@
+// IDLE (PID 0) - must not compete for the terminal, so it only spins.
+int main () {
+    decl
+        int temp, s;
+    enddecl
+    begin
+        s = 333;
+        temp = 0;
+        while (s == 333) do
+            temp = temp + 1;
+        endwhile;
+        return 0;
+    end
+}

@@ -1,0 +1,19 @@
+// INIT (PID 1) - reads five numbers from the console and echoes each one
+// back to the terminal.
+//
+// read(n)  -> exposcall("Read", -1, &n)  -> INT 6 -> Terminal Read
+// write(n) -> exposcall("Write", -2, n)  -> INT 7 -> Terminal Write
+int main () {
+    decl
+        int n, i;
+    enddecl
+    begin
+        i = 0;
+        while (i < 5) do
+            read(n);
+            write(n);
+            i = i + 1;
+        endwhile;
+        return 0;
+    end
+}
