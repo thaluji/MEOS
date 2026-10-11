@@ -1,0 +1,11 @@
+load --library ../expl/library.lib
+load --os ../Assignments/Round_Robin_scheduler/osloader.xsm
+load --init ../Assignments/Round_Robin_scheduler/init.xsm
+load --int=7 ../Assignments/Round_Robin_scheduler/int_7.xsm
+load --int=10 ../Assignments/Round_Robin_scheduler/int_10.xsm
+load --exhandler ../Assignments/Round_Robin_scheduler/haltprog.xsm
+load --idle ../Assignments/Round_Robin_scheduler/idle.xsm
+load --module 7 ../Assignments/Round_Robin_scheduler/mod_7.xsm
+load --module 5 ../Assignments/Round_Robin_scheduler/mod_5.xsm
+load --int=timer ../Assignments/Round_Robin_scheduler/timer.xsm
+load --exec ../Assignments/Round_Robin_scheduler/even.xsm
